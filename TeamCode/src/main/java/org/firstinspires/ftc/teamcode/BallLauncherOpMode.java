@@ -3,9 +3,12 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+
+import javax.tools.ForwardingFileObject;
 
 /**
  * Ball Launcher OpMode for GoBilda 5203 Yellow Jacket motor
@@ -35,7 +38,7 @@ public class BallLauncherOpMode extends LinearOpMode {
     public static int currentPreset = 1;
 
     // Direction control
-    private boolean direction = true;  // true = forward (CW), false = reverse (CCW)
+    private boolean direction = false;  // true = forward (CW), false = reverse (CCW)
 
     // State variables
     private double targetRPM;
@@ -83,8 +86,14 @@ public class BallLauncherOpMode extends LinearOpMode {
             }
             double power = pidController.update(currentRPM);
 
-            // Apply direction and power
-            launcherMotor.setPower(power * (direction ? 1.0 : -1.0));
+            //power
+            launcherMotor.setPower(power);
+
+            if (direction)
+                launcherMotor.setDirection(DcMotorSimple.Direction.FORWARD);
+            else if (!direction)
+                launcherMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+
 
             // Update telemetry at controlled rate
             if (System.nanoTime() / 1_000_000 - lastTelemetryTime >= 100) {
@@ -102,7 +111,7 @@ public class BallLauncherOpMode extends LinearOpMode {
 
         // Configure motor for velocity control
         launcherMotor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        launcherMotor.setDirection(com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.FORWARD);
+        launcherMotor.setDirection(DcMotorSimple.Direction.REVERSE);
 
         // Initialize PID controller with tuned values for GoBilda 5203
         double kP = 0.0005;
