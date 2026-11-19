@@ -43,7 +43,7 @@ import com.qualcomm.robotcore.util.Range;
 public class LauncherPID {
 
     // ---------------- Hardware ----------------
-    public static String MOTOR_NAME = "launcher"; // name in the robot configuration
+    public static String MOTOR_NAME = "launcherMotor"; // name in the robot configuration
     public static boolean MOTOR_REVERSED = false; // flip if FORWARD spins the wrong way (applied on next direction change)
     public static double TICKS_PER_REV = 28.0; // 6000 RPM motor encoder at output shaft
     public static double MAX_RPM = 6000.0; // free speed – loaded speed will be lower
