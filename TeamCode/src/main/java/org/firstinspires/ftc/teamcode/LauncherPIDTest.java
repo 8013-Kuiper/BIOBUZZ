@@ -13,7 +13,7 @@ import java.util.List;
  * Test / tuning OpMode for LauncherPID.
  *
  * CONTROLS (gamepad1)
- * A – launcher ON / OFFx
+ * A – launcher ON / OFF
  * B – reverse direction (spins down, motor.setDirection(), spins back up)
  * Dpad Up/Down – target RPM +/- SMALL_STEP_RPM
  * RB / LB – target RPM +/- LARGE_STEP_RPM
