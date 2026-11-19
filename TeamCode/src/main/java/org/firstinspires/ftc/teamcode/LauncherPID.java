@@ -49,7 +49,7 @@ public class LauncherPID {
     public static double MAX_RPM = 6000.0; // free speed – loaded speed will be lower
 
     // ---------------- Feedforward ----------------
-    public static double kV = 1.0 / 6000.0; // power per RPM at 12 V (start: 1 / free speed)
+    public static double kV = (1.0 / 6000.0) + .00003; // power per RPM at 12 V (start: 1 / free speed)
     public static double kS = 0.03; // power to overcome static friction
 
     // ---------------- PID ----------------
