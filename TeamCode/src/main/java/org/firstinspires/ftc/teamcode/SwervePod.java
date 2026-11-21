@@ -57,19 +57,20 @@ public class SwervePod {
     private static final double MAX_RPM = 435.0; //Max Motor RPM
     private static final double SERVO_RPM = 86.96; //Max Servo RPM (86.96 for 6V, 71.43 for 4.8V)
     private static final int DIRECTION = -1; //Servo rotation direction with positive power, -1 for CCW and 1 for CW
-    private static final double MAX_ACCELERATION = 2; //How much the power can ramp up during one second
+    private static final double MAX_ACCELERATION = 1; //How much the power can ramp up during one second
     //End Hardware Information Variables
 
     //Tuning Variables
     private static final double ERROR_THRESHOLD = 120.0; //Servo angle threshold where power scales down linearly by CORRECTION_COEFFICIENT * error
-    private static final double CORRECTION_COEFFICIENT = 0.005;
+    private double CORRECTION_COEFFICIENT = 0.005;
     //End Tuning Variables
 
-    public SwervePod(String name, CRServo turnServo, DcMotorEx driveMotor, AnalogInput analog) {
+    public SwervePod(String name, CRServo turnServo, DcMotorEx driveMotor, AnalogInput analog, double CORRECTION_COEFFICIENT) {
         this.turnServo = turnServo;
         this.driveMotor = driveMotor;
         this.analog = analog;
         this.name = name;
+        this.CORRECTION_COEFFICIENT = CORRECTION_COEFFICIENT;
         if (driveMotor.getDirection().equals(DcMotor.Direction.FORWARD)) {
             this.motorDirection = 1;
         } else {
@@ -274,16 +275,18 @@ public class SwervePod {
     }
 
     public void setDrivePower(double power) {
-        //Check if we are accelerating (magnitude is increasing in the same direction)
-        boolean isAcceleratingForward = (power > 0 && lastMotorPower >= 0 && (power - lastMotorPower > MAX_ACCELERATION * TeleOP.deltaTime));
-        boolean isAcceleratingReverse = (power < 0 && lastMotorPower <= 0 && (lastMotorPower - power > MAX_ACCELERATION * TeleOP.deltaTime));
+        if (TeleOP.updateOdometry) {
+            //Check if we are accelerating (magnitude is increasing in the same direction)
+            boolean isAcceleratingForward = (power > 0 && lastMotorPower >= 0 && (power - lastMotorPower > MAX_ACCELERATION)); //* TeleOP.deltaTime));
+            boolean isAcceleratingReverse = (power < 0 && lastMotorPower <= 0 && (lastMotorPower - power > MAX_ACCELERATION)); //* TeleOP.deltaTime));
 
-        if (isAcceleratingForward) {
-            power = lastMotorPower + MAX_ACCELERATION * TeleOP.deltaTime;
-        } else if (isAcceleratingReverse) {
-            power = lastMotorPower - MAX_ACCELERATION * TeleOP.deltaTime;
+            if (isAcceleratingForward) {
+                power = lastMotorPower + MAX_ACCELERATION * TeleOP.deltaTime;
+            } else if (isAcceleratingReverse) {
+                power = lastMotorPower - MAX_ACCELERATION * TeleOP.deltaTime;
+            }
+            power = Math.max(-1.0, Math.min(1.0, power));
         }
-        power = Math.max(-1.0, Math.min(1.0, power));
         //Apply power and accurately track the actual output
         if (isBusy) {
             driveMotor.setPower((podRPM / MAX_RPM) * -motorDirection);

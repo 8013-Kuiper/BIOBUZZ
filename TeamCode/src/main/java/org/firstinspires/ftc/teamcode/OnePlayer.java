@@ -55,7 +55,7 @@ public class OnePlayer extends LinearOpMode {
     double powerSubtractor;
     public static boolean isNoInput = false;
     public static boolean resetPods = true;
-    public static boolean updateOdometry = false;
+    public static boolean updateOdometry = true;
     public static boolean fieldCentric = false;
     public static boolean holdHeading = true;
     public static final double POWER_SUBTRACTOR = 0.0; //This is how much power will be subtracted when the right trigger isn't pressed
@@ -142,10 +142,10 @@ public class OnePlayer extends LinearOpMode {
         rearRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
         //Initialize Pods
-        SwervePod fl = new SwervePod("frontLeft", frontLeftCR, frontLeft, frontLeftPos);
-        SwervePod fr = new SwervePod("frontRight", frontRightCR, frontRight, frontRightPos);
-        SwervePod rl = new SwervePod("rearLeft", rearLeftCR, rearLeft, rearLeftPos);
-        SwervePod rr = new SwervePod("rearRight", rearRightCR, rearRight, rearRightPos);
+        SwervePod fl = new SwervePod("frontLeft", frontLeftCR, frontLeft, frontLeftPos, TeleOP.MK1_COEFFICIENT);
+        SwervePod fr = new SwervePod("frontRight", frontRightCR, frontRight, frontRightPos, TeleOP.MK2_COEFFICIENT);
+        SwervePod rl = new SwervePod("rearLeft", rearLeftCR, rearLeft, rearLeftPos, TeleOP.MK2_COEFFICIENT);
+        SwervePod rr = new SwervePod("rearRight", rearRightCR, rearRight, rearRightPos, TeleOP.MK1_COEFFICIENT);
 
         SwerveDrive drive = new SwerveDrive(fl, fr, rl, rr);
 

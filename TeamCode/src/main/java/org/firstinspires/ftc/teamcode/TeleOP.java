@@ -59,6 +59,8 @@ public class TeleOP extends LinearOpMode {
     //Robot Information
     public static final double LENGTH = 14.25; //distance from wheel center to wheel center, inches
     public static final double WIDTH = 14.25;
+    public static final double MK1_COEFFICIENT = 0.005;
+    public static final double MK2_COEFFICIENT = 0.002;
 
     //Mechanism Declarations
     private DcMotor intake;
@@ -120,10 +122,10 @@ public class TeleOP extends LinearOpMode {
         rearRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
         //Initialize Pods
-        SwervePod fl = new SwervePod("frontLeft", frontLeftCR, frontLeft, frontLeftPos);
-        SwervePod fr = new SwervePod("frontRight", frontRightCR, frontRight, frontRightPos);
-        SwervePod rl = new SwervePod("rearLeft", rearLeftCR, rearLeft, rearLeftPos);
-        SwervePod rr = new SwervePod("rearRight", rearRightCR, rearRight, rearRightPos);
+        SwervePod fl = new SwervePod("frontLeft", frontLeftCR, frontLeft, frontLeftPos, MK1_COEFFICIENT);
+        SwervePod fr = new SwervePod("frontRight", frontRightCR, frontRight, frontRightPos, MK2_COEFFICIENT);
+        SwervePod rl = new SwervePod("rearLeft", rearLeftCR, rearLeft, rearLeftPos, MK2_COEFFICIENT);
+        SwervePod rr = new SwervePod("rearRight", rearRightCR, rearRight, rearRightPos, MK1_COEFFICIENT);
 
         SwerveDrive drive = new SwerveDrive(fl, fr, rl, rr);
 

@@ -17,6 +17,7 @@ public class Odometry {
     private double SDy;
     private double heading = 0;
     private double SDHeading = 0;
+    double lastTime;
     private int stallCount = 0;
     public int headingMethod = 1; //0 for Encoder, 1 for IMU
     public ElapsedTime runTime = new ElapsedTime();
@@ -51,6 +52,10 @@ public class Odometry {
         } else if (headingMethod == 1){
             headingRad = Math.toRadians(getHeading());
         }
+
+        double time = runTime.seconds();
+        deltaTime = time - lastTime;
+        TeleOP.deltaTime = deltaTime;
 
         double flDeltaX = fl.getDeltaX();
         double flDeltaY = fl.getDeltaY();
@@ -125,6 +130,7 @@ public class Odometry {
             acc++;
         }
         SDHeading += Math.toDegrees(totalTheta / acc);
+        lastTime = time;
     }
 
     //Tune these values as needed
@@ -149,8 +155,6 @@ public class Odometry {
             heading += 360;
 
         double time = runTime.seconds();
-        deltaTime = time - oldTime;
-        TeleOP.deltaTime = deltaTime;
 
         double currentHeading = getHeading();
         if (headingMethod == 0) {
