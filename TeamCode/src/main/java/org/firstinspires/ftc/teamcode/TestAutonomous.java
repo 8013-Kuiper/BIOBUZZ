@@ -98,10 +98,10 @@ public class TestAutonomous extends LinearOpMode {
         rearRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
         //Initialize Pods
-        SwervePod fl = new SwervePod("frontLeft", frontLeftCR, frontLeft, frontLeftPos, TeleOP.MK1_COEFFICIENT);
-        SwervePod fr = new SwervePod("frontRight", frontRightCR, frontRight, frontRightPos, TeleOP.MK2_COEFFICIENT);
-        SwervePod rl = new SwervePod("rearLeft", rearLeftCR, rearLeft, rearLeftPos, TeleOP.MK2_COEFFICIENT);
-        SwervePod rr = new SwervePod("rearRight", rearRightCR, rearRight, rearRightPos, TeleOP.MK1_COEFFICIENT);
+        SwervePod fl = new SwervePod("frontLeft", frontLeftCR, frontLeft, frontLeftPos);
+        SwervePod fr = new SwervePod("frontRight", frontRightCR, frontRight, frontRightPos);
+        SwervePod rl = new SwervePod("rearLeft", rearLeftCR, rearLeft, rearLeftPos);
+        SwervePod rr = new SwervePod("rearRight", rearRightCR, rearRight, rearRightPos);
 
         SwerveDrive drive = new SwerveDrive(fl, fr, rl, rr);
 
@@ -130,13 +130,12 @@ public class TestAutonomous extends LinearOpMode {
         //Autonomous Loop
         while (opModeIsActive()) {
 
-            odometry.update(); //Update odometry
-            drive.update();
 
             fl.update(); //Update pods
             fr.update();
             rl.update();
             rr.update();
+            odometry.update();
 
             switch (step) {
 
@@ -219,6 +218,8 @@ public class TestAutonomous extends LinearOpMode {
                     step ++;
                     break;
             }
+
+            drive.update();
 
             telemetry.addData("Encoder Position (X, Y, Angle)", ((Math.round((odometry.getSDX()) * 1000.0) / 1000.0 + " ft, ") + (Math.round((odometry.getSDY()) * 1000.0) / 1000.0 + " ft ") + (odometry.getSDHeading() + "°")));
             telemetry.addData("IMU Heading", (odometry.getHeading() + "°"));

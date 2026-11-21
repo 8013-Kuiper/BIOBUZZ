@@ -62,15 +62,14 @@ public class SwervePod {
 
     //Tuning Variables
     private static final double ERROR_THRESHOLD = 120.0; //Servo angle threshold where power scales down linearly by CORRECTION_COEFFICIENT * error
-    private double CORRECTION_COEFFICIENT = 0.005;
+    private static final double CORRECTION_COEFFICIENT = 0.005;
     //End Tuning Variables
 
-    public SwervePod(String name, CRServo turnServo, DcMotorEx driveMotor, AnalogInput analog, double CORRECTION_COEFFICIENT) {
+    public SwervePod(String name, CRServo turnServo, DcMotorEx driveMotor, AnalogInput analog) {
         this.turnServo = turnServo;
         this.driveMotor = driveMotor;
         this.analog = analog;
         this.name = name;
-        this.CORRECTION_COEFFICIENT = CORRECTION_COEFFICIENT;
         if (driveMotor.getDirection().equals(DcMotor.Direction.FORWARD)) {
             this.motorDirection = 1;
         } else {
@@ -81,7 +80,10 @@ public class SwervePod {
     public void update() { //Run this every loop
         voltage = analog.getVoltage();
         servoAngle = (getContinuousVoltage() / MAX_VOLTAGE) * 360.0;
-        if (!isBusy) {
+        if (isBusy) {
+            // Discard encoder motion from steering compensation during this interval.
+            lastEncoder = driveMotor.getCurrentPosition();
+        } else {
             updateOdometry();
         }
     }
@@ -104,7 +106,7 @@ public class SwervePod {
 
     //File Saving/Access Methods
     //These methods handle the saving of the rollover value to disk, so that in the event of a power failure or the robot being turned off, the robot will remember where the pods are to zero them
-    private File getFile() {
+    File getFile() {
         return AppUtil.getInstance().getSettingsFile(name + "_rollover.txt");
     }
     public int loadRollover() {
@@ -137,6 +139,9 @@ public class SwervePod {
     }
 
     public void readLogFile() {
+        voltage = analog.getVoltage();
+        lastVoltage = voltage;
+        lastDelta = 0;
         rollover = loadRollover();
         savedRollover = rollover;
     }
@@ -196,12 +201,14 @@ public class SwervePod {
     public void updateOdometry() {
         int currentEncoder = driveMotor.getCurrentPosition();
         int deltaTicks = currentEncoder - lastEncoder;
+        lastEncoder = currentEncoder;
+        // While steering, encoder motion includes the mechanical steering compensation.
+
         double podAngle = getPodAngle();
         double deltaDistance = ticksToDistance(deltaTicks);
         deltaX += deltaDistance * Math.sin(Math.toRadians(podAngle)); //Accumulates b/c the delta might not be polled every loop
         deltaY += deltaDistance * Math.cos(Math.toRadians(podAngle));
 
-        lastEncoder = currentEncoder;
     }
     public double ticksToDistance(int ticks) { //Returns distance in feet
         double circumference = (WHEEL_DIAMETER / 304.8) * Math.PI;
@@ -221,20 +228,8 @@ public class SwervePod {
 
     //Begin Control Methods
     public void updateTurning() {
-        double current = getServoAngle();
-        current = current % (360 * ABSOLUTE_GEAR_RATIO); //normalize to one full pod rotation in degrees
-        error = servoTarget - current;
-
-        //Handles situations where if the pod has to rotate over 180 degrees, it can go angle - 360 the other way (e.g. -90 instead of 270)
-        if (Math.abs(error) > 200 * ABSOLUTE_GEAR_RATIO) {
-            if (error > 0) {
-                error -= 360 * ABSOLUTE_GEAR_RATIO;
-            } else {
-                error += 360 * ABSOLUTE_GEAR_RATIO;
-            }
-        }
-
-        //Handles situations where if the pod needs to rotate more than 90 degrees, it can rotate angle - 180 and reverse the motor speed (e.g. -45 instead of 135)
+        double fullTurn = 360 * ABSOLUTE_GEAR_RATIO;
+        error = Math.IEEEremainder(servoTarget - getServoAngle(), fullTurn);
         direction = 1;
         if (Math.abs(error) > 95 * ABSOLUTE_GEAR_RATIO) {
             if (error > 0) {
