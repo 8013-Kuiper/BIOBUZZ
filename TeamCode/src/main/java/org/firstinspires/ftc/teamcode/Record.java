@@ -12,7 +12,12 @@ import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -125,6 +130,33 @@ public class Record extends LinearOpMode {
         telemetry.update();
     }
 
+    //Mechanism Declarations
+    private DcMotor intake;
+    private DcMotor transfer;
+    private DcMotorEx flywheel;
+    double intakePower;
+    double flywheelPower;
+    double distance = 59;
+
+    double RPM = 2500.0;
+    public final double MAX_RPM = 5000.0;
+
+    //Tuning Constants
+    //Proportional gain: converts degrees of error into motor rotation power [-1, 1]
+    final double AIM_COEFFICIENT = 0.035;
+
+    //Constant offset (in degrees) to compensate for camera mounting position or shooter bias
+    //Positive shifts the aim point to the right; negative shifts it to the left
+    final double BEARING_OFFSET_DEG = -2.0;
+
+    //Tolerance (in degrees) for setting isAimed = true
+    final double AIM_TOLERANCE_DEG = 5.0;
+
+    //Control & State Variables
+    boolean redAllianceTarget = true;
+    boolean isAimed = false;
+    double aimRotation = 0.0; // Range [-1, 1], positive = Clockwise (CW)
+
     @Override
     public void runOpMode() throws InterruptedException {
         //Map drivetrain motors
@@ -204,6 +236,25 @@ public class Record extends LinearOpMode {
         rl.readLogFile();
         rr.readLogFile();
 
+        //Mechanism Initialization
+        intake = hardwareMap.get(DcMotor.class, "intake");
+        transfer = hardwareMap.get(DcMotorEx.class, "transfer");
+        flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
+
+        intake.setDirection(DcMotor.Direction.REVERSE);
+        transfer.setDirection(DcMotor.Direction.REVERSE);
+        flywheel.setDirection(DcMotor.Direction.REVERSE);
+
+        flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        //Camera
+        AprilTagProcessor aprilTagProcessor = new AprilTagProcessor.Builder().build();
+        VisionPortal visionPortal = new VisionPortal.Builder()
+                .setCamera(hardwareMap.get(WebcamName.class, "Webcam"))
+                .addProcessor(aprilTagProcessor)
+                .build();
+        //End Mechanism Initialization
+
         //Wait for Start while displaying rollover information
         while (!isStarted() && !isStopRequested()) {
             telemetry.addData("Front Left Rollover", fl.savedRollover);
@@ -248,8 +299,7 @@ public class Record extends LinearOpMode {
                 }
 
                 powerSubtractor = (1.0 - driver.getRightTrigger()) * POWER_SUBTRACTOR;
-                powerMultiplier = Math.min((1.0 - (driver.getLeftTrigger() - 0.30)), 1.0)
-                        - powerSubtractor;
+                powerMultiplier = Math.min((1.0 - (driver.getLeftTrigger() - 0.30)), 1.0) - powerSubtractor;
                 if (driver.getAToggle()) {
                     powerMultiplier /= 2.0;
                 }
@@ -258,6 +308,97 @@ public class Record extends LinearOpMode {
                 power = Math.pow(driver.getResultant(), 2) * powerMultiplier;
                 rotation = Math.pow(driver.getRotation(), 3) * powerMultiplier;
                 TeleOP.isNoInput = driver.isNoInput() && !rotationError;
+
+                //Mechanism Code
+                List<AprilTagDetection> detections = aprilTagProcessor.getDetections();
+
+                double realRPM = flywheel.getVelocity() / 28 * 60;
+                boolean spunUp = Math.abs(realRPM - RPM) < 200.0;
+
+                aimRotation = 0.0;
+                isAimed = false;
+                boolean foundTargetTag = false;
+
+                for (AprilTagDetection detection : detections) {
+                    //BIOBUZZ Hive tags return as AprilTagClusterDetection objects
+                    if (detection instanceof AprilTagClusterDetection) {
+                        AprilTagClusterDetection cluster = (AprilTagClusterDetection) detection;
+
+                        if (cluster.metadata != null) {
+                            //Filter for the selected alliance (RED vs BLUE)
+                            String name = cluster.metadata.name.toUpperCase();
+                            boolean isCorrectAlliance = redAllianceTarget ? name.contains("RED") : name.contains("BLUE");
+
+                            if (isCorrectAlliance) {
+                                if (cluster.ftcPose != null) {
+                                    //Ignore the upside-down (unscorable) Hive cell on the far side
+                                    boolean isUpright = Math.abs(cluster.ftcPose.roll) < 90.0;
+
+                                    if (isUpright) {
+                                        foundTargetTag = true;
+
+                                        //Update Distance
+                                        distance = cluster.ftcPose.range; // Point-to-point distance (inches)
+
+                                        //Update Auto-Aim
+                                        //Negate bearing so targets to the right produce positive (CW) values
+                                        double rawBearingCW = -cluster.ftcPose.bearing;
+                                        double error = rawBearingCW + BEARING_OFFSET_DEG;
+
+                                        //Update isAimed regardless of whether the right stick is pressed
+                                        isAimed = Math.abs(error) <= AIM_TOLERANCE_DEG;
+
+                                        //Calculate proportional rotation only when right stick is pressed
+                                        if (gamepad1.right_stick_button) {
+                                            double rawOutput = error * AIM_COEFFICIENT;
+                                            aimRotation = Math.max(-1.0, Math.min(1.0, rawOutput));
+                                        }
+
+                                        break; // Stop looping once we process our valid alliance target
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                telemetry.addLine("-----AprilTag-----");
+                if (redAllianceTarget) { telemetry.addLine("Alliance : Red"); }
+                else { telemetry.addLine("Alliance : Blue"); }
+                telemetry.addData("Ready to Shoot", spunUp && isAimed);
+                telemetry.addData("Is Aimed", isAimed);
+                telemetry.addData("Found Tag", foundTargetTag);
+                telemetry.addData("Distance", distance);
+                telemetry.addLine();
+
+                if (driver.getDpadUpPressed()) {
+                    RPM += 50;
+                } else if (driver.getDpadDownPressed()) {
+                    RPM -= 50;
+                }
+
+                if (driver.getLeftBumperToggle()) { intakePower = 1.0; } else { intakePower = 0.0; }
+
+                double transferPower = driver.getRightTrigger() * 0.3;
+                if (driver.getB()) { transferPower *= 3; }
+
+                if (RPM > MAX_RPM) { RPM = MAX_RPM; }
+
+                if (driver.getAToggle()) {
+                    flywheelPower = RPM / MAX_RPM;
+                } else {
+                    flywheelPower = 0;
+                }
+
+                intake.setPower(intakePower);
+                transfer.setPower(transferPower);
+                flywheel.setPower(flywheelPower);
+
+                telemetry.addLine("-----Mechanism Info-----");
+                telemetry.addData("Target RPM", Math.round(RPM));
+                telemetry.addData("Real RPM", (flywheel.getVelocity() / 28 * 60));
+                telemetry.addLine();
+                //End Mechanism Code
 
                 if (driver.getLeftBumper()) {
                     TeleOP.isNoInput = false;
@@ -281,23 +422,45 @@ public class Record extends LinearOpMode {
                             }
                         }
                     }
-                    drive.drive(angle, power, rotation);
+                    if (!driver.getRightStickPressed()) { //This statement is a mechanism control. It can be deleted as it is not needed for the drivetrain
+                        drive.drive(angle, power, rotation);
+                    } else {
+                        desiredHeading = heading;
+                        TeleOP.isNoInput = false;
+                        drive.drive(0, 0, aimRotation);
+                    }
                     drive.update();
                 }
 
                 //Select pod
-                if (driver.getDpadUpPressed()) {
-                    selectedPod = fl;
-                    SelectedPod = "Front Left";
-                } else if (driver.getDpadDownPressed()) {
-                    selectedPod = rr;
-                    SelectedPod = "Rear Right";
+                if (driver.getDpadRightPressed()) {
+                    if (selectedPod == fl) {
+                        selectedPod = fr;
+                        SelectedPod = "Front Right";
+                    } else if (selectedPod == fr) {
+                        selectedPod = rl;
+                        SelectedPod = "Rear Left";
+                    } else if (selectedPod == rl) {
+                        selectedPod = rr;
+                        SelectedPod = "Rear Right";
+                    } else {
+                        selectedPod = fl;
+                        SelectedPod = "Front Left";
+                    }
                 } else if (driver.getDpadLeftPressed()) {
-                    selectedPod = rl;
-                    SelectedPod = "Rear Left";
-                } else if (driver.getDpadRightPressed()) {
-                    selectedPod = fr;
-                    SelectedPod = "Front Right";
+                    if (selectedPod == fl) {
+                        selectedPod = rr;
+                        SelectedPod = "Rear Right";
+                    } else if (selectedPod == fr) {
+                        selectedPod = fl;
+                        SelectedPod = "Front Left";
+                    } else if (selectedPod == rl) {
+                        selectedPod = fr;
+                        SelectedPod = "Front Right";
+                    } else {
+                        selectedPod = rl;
+                        SelectedPod = "Rear Left";
+                    }
                 }
 
                 //Adjust rollover
@@ -308,10 +471,10 @@ public class Record extends LinearOpMode {
                 }
 
                 SwervePod.saveRollover = driver.getBToggle();
-                resetPods = !driver.getRightBumper();
+                TeleOP.resetPods = !driver.getRightBumper();
                 fieldCentric = driver.getPSToggle();
                 holdHeading = driver.getStartToggle();
-                updateOdometry = driver.getBackToggle();
+                TeleOP.updateOdometry = driver.getBackToggle();
 
                 //Telemetry
                 telemetry.addLine("-----Pod Direction-----");
