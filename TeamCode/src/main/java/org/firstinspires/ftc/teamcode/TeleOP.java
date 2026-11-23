@@ -315,6 +315,7 @@ public class TeleOP extends LinearOpMode {
 
             telemetry.addLine("-----Mechanism Info-----");
             telemetry.addData("Target RPM (A)", Math.round(RPM));
+            telemetry.addData("Target RPM (x)", Math.round(xRPM));
             telemetry.addData("Real RPM", (flywheel.getVelocity() / 28 * 60));
             telemetry.addLine();
             //End Mechanism Code
